@@ -91,3 +91,65 @@ func TestMultipleClients(t *testing.T) {
 
 	srv.Teardown()
 }
+
+func BenchmarkSingleTopic(b *testing.B) {
+	srv := gps.NewServer()
+	err := srv.Run(5555)
+	if err != nil {
+		b.Error(err)
+	}
+
+	NUM_CLIENTS := 20
+	NUM_MESSAGES := 100
+
+	numReceived := 0
+	var mu sync.Mutex
+
+	add := func(topic string, val []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		numReceived++
+	}
+
+	var clients []gps.GClient
+	for i := 0; i < NUM_CLIENTS; i++ {
+		var client gps.GClient
+		err = client.Connect("127.0.0.1:5555")
+		if err != nil {
+			b.Error(err)
+		}
+
+		clients = append(clients, client)
+		go client.Subscribe(add, "topic")
+	}
+
+	time.Sleep(1 * time.Second)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for m := 0; m < NUM_MESSAGES; m++ {
+			numReceived = 0
+			err = srv.Publish("topic", "t")
+			if err != nil {
+				b.Error(err)
+			}
+
+			for {
+				mu.Lock()
+				t := numReceived
+				mu.Unlock()
+				if t >= NUM_CLIENTS {
+					//b.Log(t)
+					break
+				}
+			}
+		}
+	}
+
+	b.StopTimer()
+
+	for _, client := range clients {
+		client.Close()
+	}
+	srv.Teardown()
+}

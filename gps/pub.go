@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
+	"time"
 
 	pb "github.com/sleepingshell/pubsub/proto"
 	"google.golang.org/grpc"
@@ -16,6 +18,7 @@ import (
 type GPublisher struct {
 	//TODO: Add labels to a topic
 	subscribers map[string][]*subscriber
+	subMU       sync.Mutex
 	grpcS       *grpc.Server
 }
 
@@ -32,7 +35,9 @@ type subscriber struct {
 
 //Publish will publish the given item to the topic
 func (s *GPublisher) Publish(topic string, item interface{}) error {
+	s.subMU.Lock()
 	subs, ok := s.subscribers[topic]
+	s.subMU.Unlock()
 	if !ok {
 		return errors.New("No one subscribed")
 	}
@@ -43,6 +48,22 @@ func (s *GPublisher) Publish(topic string, item interface{}) error {
 		sub.inbox <- topicValue{topic: topic, value: buf.Bytes()}
 	}
 	return nil
+}
+
+//AddSubscriber will add a subscriber to the given topics
+func (s *GPublisher) AddSubscriber(sub *subscriber, topics ...string) {
+	if len(topics) < 1 {
+		return
+	}
+
+	s.subMU.Lock()
+	for _, topic := range topics {
+		if topic == "" {
+			continue
+		}
+		s.subscribers[topic] = append(s.subscribers[topic], sub)
+	}
+	s.subMU.Unlock()
 }
 
 //NumSubscribed returns the number of subscribers to a given topic
@@ -74,12 +95,7 @@ func (s *GPublisher) Subscribe(req *pb.SubRequest, server pb.Router_SubscribeSer
 	}
 
 	topics := req.GetTopics()
-	for _, topic := range topics {
-		if topic == "" {
-			return errors.New("Empty topic")
-		}
-		s.subscribers[topic] = append(s.subscribers[topic], &subscriber)
-	}
+	s.AddSubscriber(&subscriber, topics...)
 
 	for {
 		select {
@@ -108,6 +124,9 @@ func (s *GPublisher) Reset() {
 		}
 	}
 
+	time.Sleep(1 * time.Second)
+	s.subMU.Lock()
+	defer s.subMU.Unlock()
 	s.subscribers = make(map[string][]*subscriber)
 }
 
