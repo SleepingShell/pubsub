@@ -100,15 +100,10 @@ func BenchmarkSingleTopic(b *testing.B) {
 	}
 
 	NUM_CLIENTS := 20
-	NUM_MESSAGES := 100
-
-	numReceived := 0
-	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	add := func(topic string, val []byte) {
-		mu.Lock()
-		defer mu.Unlock()
-		numReceived++
+		wg.Done()
 	}
 
 	var clients []gps.GClient
@@ -124,26 +119,17 @@ func BenchmarkSingleTopic(b *testing.B) {
 	}
 
 	time.Sleep(1 * time.Second)
+
 	b.ResetTimer()
-
 	for i := 0; i < b.N; i++ {
-		for m := 0; m < NUM_MESSAGES; m++ {
-			numReceived = 0
-			err = srv.Publish("topic", "t")
-			if err != nil {
-				b.Error(err)
-			}
+		wg = sync.WaitGroup{}
+		wg.Add(NUM_CLIENTS)
 
-			for {
-				mu.Lock()
-				t := numReceived
-				mu.Unlock()
-				if t >= NUM_CLIENTS {
-					//b.Log(t)
-					break
-				}
-			}
+		err = srv.Publish("topic", "t")
+		if err != nil {
+			b.Error(err)
 		}
+		wg.Wait()
 	}
 
 	b.StopTimer()
