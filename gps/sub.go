@@ -36,7 +36,7 @@ func (g *GClient) Close() {
 }
 
 //Subscribe will subscribe to a publisher over GRPC
-func (g *GClient) Subscribe(handler pubsub.ReceivedHandler, topics ...string) {
+func (g *GClient) Subscribe(handler ReceivedHandler, topics ...string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	g.cfs = append(g.cfs, cancel)
 
@@ -44,7 +44,7 @@ func (g *GClient) Subscribe(handler pubsub.ReceivedHandler, topics ...string) {
 }
 
 //Call the GRPC subscriber endpoint and call handler when a msg is received
-func subscribe(ctx context.Context, handler pubsub.ReceivedHandler, c pb.RouterClient, topics ...string) error {
+func subscribe(ctx context.Context, handler ReceivedHandler, c pb.RouterClient, topics ...string) error {
 	stream, err := c.Subscribe(context.Background(), &pb.SubRequest{
 		Topics: topics,
 	})

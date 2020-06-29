@@ -83,6 +83,9 @@ func TestMultipleClients(t *testing.T) {
 		client.Close()
 	}
 
+	for _, topic := range topics {
+		t.Log(topic+":", srv.NumSubscribed(topic))
+	}
 	t.Log(topicCount)
 	t.Log("Num times received no one subscribed", n)
 
